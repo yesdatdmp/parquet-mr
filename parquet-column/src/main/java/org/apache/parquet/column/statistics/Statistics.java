@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -22,6 +22,8 @@ import org.apache.parquet.column.UnknownColumnTypeException;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.HashMap;
 
 
 /**
@@ -33,10 +35,32 @@ public abstract class Statistics<T extends Comparable<T>> {
 
   private boolean hasNonNullValue;
   private long num_nulls;
+  public boolean enableStats;
+  public Map<T, Long> value_count;
 
   public Statistics() {
     hasNonNullValue = false;
     num_nulls = 0;
+    enableStats = false;
+  }
+
+  public Statistics setEnableStats(boolean value) {
+    enableStats = value;
+    if (enableStats) {
+      value_count = new HashMap<T, Long>();
+    }
+    return this;
+  }
+
+  public boolean getEnableStats() {
+    return enableStats;
+  }
+
+  /**
+   * return statistics
+   */
+  public Map<T, Long> getStats() {
+    return value_count;
   }
 
   /**
@@ -44,24 +68,25 @@ public abstract class Statistics<T extends Comparable<T>> {
    * @param type PrimitiveTypeName type of the column
    * @return instance of a typed statistics class
    */
-  public static Statistics getStatsBasedOnType(PrimitiveTypeName type) {
+  public static Statistics getStatsBasedOnType(PrimitiveTypeName type,
+                                               boolean enableStats) {
     switch(type) {
     case INT32:
-      return new IntStatistics();
+      return new IntStatistics().setEnableStats(enableStats);
     case INT64:
-      return new LongStatistics();
+      return new LongStatistics().setEnableStats(enableStats);
     case FLOAT:
-      return new FloatStatistics();
+      return new FloatStatistics().setEnableStats(enableStats);
     case DOUBLE:
-      return new DoubleStatistics();
+      return new DoubleStatistics().setEnableStats(enableStats);
     case BOOLEAN:
-      return new BooleanStatistics();
+      return new BooleanStatistics().setEnableStats(enableStats);
     case BINARY:
-      return new BinaryStatistics();
+      return new BinaryStatistics().setEnableStats(enableStats);
     case INT96:
-      return new BinaryStatistics();
+      return new BinaryStatistics().setEnableStats(enableStats);
     case FIXED_LEN_BYTE_ARRAY:
-      return new BinaryStatistics();
+      return new BinaryStatistics().setEnableStats(enableStats);
     default:
       throw new UnknownColumnTypeException(type);
     }
@@ -242,13 +267,12 @@ public abstract class Statistics<T extends Comparable<T>> {
   public boolean hasNonNullValue() {
     return hasNonNullValue;
   }
- 
+
   /**
    * Sets the page/column as having a valid non-null value
    * kind of misnomer here
-   */ 
+   */
   protected void markAsNotEmpty() {
     hasNonNullValue = true;
   }
 }
-

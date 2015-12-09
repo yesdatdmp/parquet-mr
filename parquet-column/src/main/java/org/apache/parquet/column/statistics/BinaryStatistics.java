@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,6 +19,8 @@
 package org.apache.parquet.column.statistics;
 
 import org.apache.parquet.io.api.Binary;
+import java.util.Map;
+import java.util.HashMap;
 
 public class BinaryStatistics extends Statistics<Binary> {
 
@@ -32,6 +34,14 @@ public class BinaryStatistics extends Statistics<Binary> {
     } else {
       updateStats(value, value);
     }
+    if (enableStats) {
+      Long v = value_count.get(value);
+      if (v != null) {
+        value_count.put(value, v + 1);
+      } else {
+        value_count.put(value, new Long(1));
+      }
+    }
   }
 
   @Override
@@ -41,6 +51,18 @@ public class BinaryStatistics extends Statistics<Binary> {
       initializeStats(binaryStats.getMin(), binaryStats.getMax());
     } else {
       updateStats(binaryStats.getMin(), binaryStats.getMax());
+    }
+    if (enableStats && stats.getEnableStats()) {
+      Map<Binary, Long> st = stats.getStats();
+      for (Map.Entry<Binary, Long> v : st.entrySet()) {
+        Binary key = v.getKey();
+        Long value = v.getValue();
+        if (value_count.containsKey(key)) {
+          value_count.put(key, value_count.get(key) + value);
+        } else {
+          value_count.put(key, value);
+        }
+      }
     }
   }
 
@@ -83,9 +105,9 @@ public class BinaryStatistics extends Statistics<Binary> {
   }
 
   public void initializeStats(Binary min_value, Binary max_value) {
-      min = min_value.copy();
-      max = max_value.copy();
-      this.markAsNotEmpty();
+    min = min_value.copy();
+    max = max_value.copy();
+    this.markAsNotEmpty();
   }
 
   @Override

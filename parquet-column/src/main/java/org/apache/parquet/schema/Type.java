@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -112,6 +112,25 @@ abstract public class Type {
   private final Repetition repetition;
   private final OriginalType originalType;
   private final ID id;
+  private static StatisticsMetaData statisticsMetaData;
+
+  public static void setStatisticsMetaData(StatisticsMetaData metaData) {
+    if (statisticsMetaData == null) {
+      statisticsMetaData = metaData;
+    }
+  }
+
+  public static StatisticsMetaData getStatisticsMetaData() {
+    return statisticsMetaData;
+  }
+
+  public static boolean getEnableStatsBaseOnPaths(String[] path) {
+    if (statisticsMetaData != null) {
+      return statisticsMetaData.getEnableStatsBaseOnPaths(path);
+    } else {
+      return false;
+    }
+  }
 
   /**
    * @param name the name of the type

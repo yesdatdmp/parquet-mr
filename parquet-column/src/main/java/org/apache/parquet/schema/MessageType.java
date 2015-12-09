@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -95,8 +95,10 @@ public final class MessageType extends GroupType {
     int maxRep = getMaxRepetitionLevel(path);
     int maxDef = getMaxDefinitionLevel(path);
     PrimitiveType type = getType(path).asPrimitiveType();
-    return new ColumnDescriptor(path, type.getPrimitiveTypeName(),
+    ColumnDescriptor result = new ColumnDescriptor(path, type.getPrimitiveTypeName(),
                                 type.getTypeLength(), maxRep, maxDef);
+    result.setEnableStats(getEnableStatsBaseOnPaths(path));
+    return result;
   }
 
   public List<String[]> getPaths() {
@@ -109,12 +111,14 @@ public final class MessageType extends GroupType {
     for (String[] path : paths) {
       // TODO: optimize this
       PrimitiveType primitiveType = getType(path).asPrimitiveType();
-      columns.add(new ColumnDescriptor(
+      ColumnDescriptor result = new ColumnDescriptor(
                       path,
                       primitiveType.getPrimitiveTypeName(),
                       primitiveType.getTypeLength(),
                       getMaxRepetitionLevel(path),
-                      getMaxDefinitionLevel(path)));
+                      getMaxDefinitionLevel(path));
+      result.setEnableStats(getEnableStatsBaseOnPaths(path));
+      columns.add(result);
     }
     return columns;
   }

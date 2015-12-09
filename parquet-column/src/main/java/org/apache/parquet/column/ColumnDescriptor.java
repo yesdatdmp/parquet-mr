@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -35,6 +35,7 @@ public class ColumnDescriptor implements Comparable<ColumnDescriptor> {
   private final int typeLength;
   private final int maxRep;
   private final int maxDef;
+  private boolean enableStats = false;
 
   /**
    *
@@ -43,7 +44,7 @@ public class ColumnDescriptor implements Comparable<ColumnDescriptor> {
    * @param maxRep the maximum repetition level for that path
    * @param maxDef the maximum definition level for that path
    */
-  public ColumnDescriptor(String[] path, PrimitiveTypeName type, int maxRep, 
+  public ColumnDescriptor(String[] path, PrimitiveTypeName type, int maxRep,
                           int maxDef) {
     this(path, type, 0, maxRep, maxDef);
   }
@@ -55,7 +56,7 @@ public class ColumnDescriptor implements Comparable<ColumnDescriptor> {
    * @param maxRep the maximum repetition level for that path
    * @param maxDef the maximum definition level for that path
    */
-  public ColumnDescriptor(String[] path, PrimitiveTypeName type, 
+  public ColumnDescriptor(String[] path, PrimitiveTypeName type,
                           int typeLength, int maxRep, int maxDef) {
     super();
     this.path = path;
@@ -91,6 +92,20 @@ public class ColumnDescriptor implements Comparable<ColumnDescriptor> {
    */
   public PrimitiveTypeName getType() {
     return type;
+  }
+
+  /**
+   * @return the status of whether statistics the field
+   */
+  public boolean getEnableStats() {
+    return enableStats;
+  }
+
+  /**
+   * set enable statistics for this field
+   */
+  public void setEnableStats(boolean value) {
+    enableStats = value;
   }
 
   /**
