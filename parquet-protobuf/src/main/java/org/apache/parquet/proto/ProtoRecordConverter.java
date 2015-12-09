@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,7 +18,7 @@
  */
 package org.apache.parquet.proto;
 
-
+import com.google.protobuf.ExtensionRegistry;
 import com.google.protobuf.Message;
 import com.google.protobuf.MessageOrBuilder;
 import org.apache.parquet.schema.MessageType;
@@ -34,7 +34,7 @@ public class ProtoRecordConverter<T extends MessageOrBuilder> extends ProtoMessa
 
   private final Message.Builder reusedBuilder;
   private boolean buildBefore;
-
+  private static ExtensionRegistry extensionRegistry;
   /**
    * We dont need to write message value at top level.
    */
@@ -54,6 +54,10 @@ public class ProtoRecordConverter<T extends MessageOrBuilder> extends ProtoMessa
   public ProtoRecordConverter(Message.Builder builder, MessageType parquetSchema) {
     super(new SkipParentValueContainer(), builder, parquetSchema);
     reusedBuilder = getBuilder();
+  }
+
+  public static void setExtensionRegistry(ExtensionRegistry er) {
+    extensionRegistry = er;
   }
 
   @Override

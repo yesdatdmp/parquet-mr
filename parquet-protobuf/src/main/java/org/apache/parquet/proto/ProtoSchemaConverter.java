@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -27,6 +27,7 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.parquet.Log;
@@ -35,12 +36,12 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.apache.parquet.schema.Types.Builder;
 import org.apache.parquet.schema.Types.GroupBuilder;
-
+import com.google.protobuf.DescriptorProtos.*;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
 import com.google.protobuf.Message;
 import com.twitter.elephantbird.util.Protobufs;
-
+import com.google.protobuf.ExtensionRegistry;
 /**
  * <p/>
  * Converts a Protocol Buffer Descriptor into a Parquet schema.
@@ -50,6 +51,14 @@ import com.twitter.elephantbird.util.Protobufs;
 public class ProtoSchemaConverter {
 
   private static final Log LOG = Log.getLog(ProtoSchemaConverter.class);
+  private static ExtensionRegistry extensionRegistry;
+
+  public static void setExtensionRegistry(ExtensionRegistry er) {
+    extensionRegistry = er;
+  }
+
+  public ProtoSchemaConverter() {
+  }
 
   public MessageType convert(Class<? extends Message> protobufClass) {
     LOG.debug("Converting protocol buffer class \"" + protobufClass + "\" to parquet schema.");
@@ -96,6 +105,22 @@ public class ProtoSchemaConverter {
     case MESSAGE: {
       GroupBuilder<GroupBuilder<T>> group = builder.group(repetition);
       convertFields(group, descriptor.getMessageType().getFields());
+      if (extensionRegistry != null) {
+        Descriptors.Descriptor dscrpt = descriptor.getMessageType();
+        List<Descriptors.FieldDescriptor> fields = new ArrayList<Descriptors.FieldDescriptor>();
+        for (int ix = 0; ix < dscrpt.toProto().getExtensionRangeCount(); ix++) {
+          DescriptorProto.ExtensionRange range = dscrpt.toProto().getExtensionRange(ix);
+          for (int iy = range.getStart(); iy < range.getEnd(); iy++) {
+            ExtensionRegistry.ExtensionInfo ei = extensionRegistry.findExtensionByNumber(descriptor.getMessageType(), iy);
+            if (ei != null) {
+              fields.add(ei.descriptor);
+            }
+          }
+        }
+        if (!fields.isEmpty()) {
+          convertFields(group, fields);
+        }
+      }
       return group;
     }
     case ENUM: return builder.primitive(BINARY, repetition).as(ENUM);

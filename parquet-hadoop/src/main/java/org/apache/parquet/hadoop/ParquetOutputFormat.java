@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -146,7 +146,7 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
   public static final String ESTIMATE_PAGE_SIZE_CHECK = "parquet.page.size.check.estimate";
 
   // default to no padding for now
-  private static final int DEFAULT_MAX_PADDING_SIZE = 0;
+  public static final int DEFAULT_MAX_PADDING_SIZE = 0;
 
   public static JobSummaryLevel getJobSummaryLevel(Configuration conf) {
     String level = conf.get(JOB_SUMMARY_LEVEL);
@@ -448,7 +448,7 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
   /**
    * This memory manager is for all the real writers (InternalParquetRecordWriter) in one task.
    */
-  private static MemoryManager memoryManager;
+  public static MemoryManager memoryManager;
 
   public static MemoryManager getMemoryManager() {
     return memoryManager;

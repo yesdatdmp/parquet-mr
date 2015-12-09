@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,7 +17,8 @@
  * under the License.
  */
 package org.apache.parquet.proto;
-
+import com.google.protobuf.DescriptorProtos.*;
+import com.google.protobuf.ExtensionRegistry;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.Descriptors;
@@ -40,6 +41,7 @@ import org.apache.parquet.schema.Type;
 import java.lang.reflect.Array;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -54,6 +56,8 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
   private RecordConsumer recordConsumer;
   private Class<? extends Message> protoMessage;
   private MessageWriter messageWriter;
+  private static ExtensionRegistry extensionRegistry;
+  private Configuration conf;
 
   public ProtoWriteSupport() {
   }
@@ -62,6 +66,9 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
     this.protoMessage = protobufClass;
   }
 
+  public static void setExtensionRegistry(ExtensionRegistry er) {
+    extensionRegistry = er;
+  }
   @Override
   public String getName() {
     return "protobuf";
@@ -95,7 +102,7 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
 
   @Override
   public WriteContext init(Configuration configuration) {
-
+    conf = configuration;
     // if no protobuf descriptor was given in constructor, load descriptor from configuration (set with setProtobufClass)
     if (protoMessage == null) {
       Class<? extends Message> pbClass = configuration.getClass(PB_CLASS_WRITE, null, Message.class);
@@ -108,11 +115,12 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
       }
     }
 
+    ProtoSchemaConverter.setExtensionRegistry(extensionRegistry);
     MessageType rootSchema = new ProtoSchemaConverter().convert(protoMessage);
     Descriptors.Descriptor messageDescriptor = Protobufs.getMessageDescriptor(protoMessage);
     validatedMapping(messageDescriptor, rootSchema);
 
-    this.messageWriter = new MessageWriter(messageDescriptor, rootSchema);
+    this.messageWriter = new MessageWriter(messageDescriptor, rootSchema, extensionRegistry);
 
     Map<String, String> extraMetaData = new HashMap<String, String>();
     extraMetaData.put(ProtoReadSupport.PB_CLASS, protoMessage.getName());
@@ -122,11 +130,16 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
 
 
   class FieldWriter {
+    ExtensionRegistry extensionRegistry;
     String fieldName;
     int index = -1;
 
      void setFieldName(String fieldName) {
       this.fieldName = fieldName;
+    }
+
+    void setExtensionRegistry(ExtensionRegistry extensionRegistry) {
+      this.extensionRegistry = extensionRegistry;
     }
 
     /** sets index of field inside parquet message.*/
@@ -147,20 +160,60 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
     }
   }
 
+  List<Descriptors.FieldDescriptor> getAllExtensionField(Descriptors.Descriptor descriptor,
+                                                         ExtensionRegistry extensionRegistry) {
+    if (extensionRegistry != null) {
+      String fullName = descriptor.getFullName();
+      List<Descriptors.FieldDescriptor> fields =
+          new ArrayList<Descriptors.FieldDescriptor>();
+      for (int ix = 0; ix < descriptor.toProto().getExtensionRangeCount(); ix++) {
+        DescriptorProto.ExtensionRange range =
+            descriptor.toProto().getExtensionRange(ix);
+        for (int iy = range.getStart(); iy < range.getEnd(); iy++) {
+          ExtensionRegistry.ExtensionInfo ei =
+              extensionRegistry.findExtensionByNumber(descriptor, iy);
+          if (ei != null) {
+            fields.add(ei.descriptor);
+          }
+        }
+      }
+      if (!fields.isEmpty()) {
+        return fields;
+      } else {
+        return null;
+      }
+    } else {
+      return null;
+    }
+  }
+
   class MessageWriter extends FieldWriter {
 
     final FieldWriter[] fieldWriters;
+    final Map<String, Integer> indexs;
 
     @SuppressWarnings("unchecked")
-    MessageWriter(Descriptors.Descriptor descriptor, GroupType schema) {
+    MessageWriter(Descriptors.Descriptor descriptor, GroupType schema,
+                  ExtensionRegistry extensionRegistry) {
+      setExtensionRegistry(extensionRegistry);
+      List<Descriptors.FieldDescriptor> allFields =
+          new ArrayList<Descriptors.FieldDescriptor>();
       List<Descriptors.FieldDescriptor> fields = descriptor.getFields();
-      fieldWriters = (FieldWriter[]) Array.newInstance(FieldWriter.class, fields.size());
+      allFields.addAll(fields);
+      List<Descriptors.FieldDescriptor> extensionFields = getAllExtensionField(descriptor, extensionRegistry);
+      if (extensionFields != null && !extensionFields.isEmpty()) {
+        for (int ix = 0; ix < extensionFields.size(); ix++) {
+          allFields.add(extensionFields.get(ix));
+        }
+      }
+      indexs = new HashMap<String, Integer>();
 
+      fieldWriters = (FieldWriter[]) Array.newInstance(FieldWriter.class, fields.size());
       int i = 0;
-      for (Descriptors.FieldDescriptor fieldDescriptor: fields) {
+      for (Descriptors.FieldDescriptor fieldDescriptor: allFields) {
         String name = fieldDescriptor.getName();
         Type type = schema.getType(name);
-        FieldWriter writer = createWriter(fieldDescriptor, type);
+        FieldWriter writer = createWriter(fieldDescriptor, type, extensionRegistry);
 
         if(fieldDescriptor.isRepeated()) {
          writer = new ArrayWriter(writer);
@@ -168,17 +221,19 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
 
         writer.setFieldName(name);
         writer.setIndex(schema.getFieldIndex(name));
+        indexs.put(name, i);
 
         fieldWriters[i] = writer;
+        fieldWriters[i].setExtensionRegistry(extensionRegistry);
         i++;
       }
     }
 
-    private FieldWriter createWriter(Descriptors.FieldDescriptor fieldDescriptor, Type type) {
+    private FieldWriter createWriter(Descriptors.FieldDescriptor fieldDescriptor, Type type, ExtensionRegistry extensionRegistry) {
 
       switch (fieldDescriptor.getJavaType()) {
         case STRING: return new StringWriter() ;
-        case MESSAGE: return new MessageWriter(fieldDescriptor.getMessageType(), type.asGroupType());
+        case MESSAGE: return new MessageWriter(fieldDescriptor.getMessageType(), type.asGroupType(), extensionRegistry);
         case INT: return new IntWriter();
         case LONG: return new LongWriter();
         case FLOAT: return new FloatWriter();
@@ -220,7 +275,7 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
 
       for (Map.Entry<Descriptors.FieldDescriptor, Object> entry : changedPbFields.entrySet()) {
         Descriptors.FieldDescriptor fieldDescriptor = entry.getKey();
-        int fieldIndex = fieldDescriptor.getIndex();
+        int fieldIndex = indexs.get(fieldDescriptor.getName());
         fieldWriters[fieldIndex].writeField(entry.getValue());
       }
     }
