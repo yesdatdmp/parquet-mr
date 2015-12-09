@@ -62,7 +62,10 @@
   <pluginRepositories>
     <pluginRepository>
       <id>Twitter public Maven repo</id>
+      <!--
       <url>http://maven.twttr.com</url>
+      -->
+      <url>http://search.maven.org</url>
     </pluginRepository>
   </pluginRepositories>
 
