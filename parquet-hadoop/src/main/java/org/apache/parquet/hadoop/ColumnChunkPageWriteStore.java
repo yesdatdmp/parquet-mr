@@ -75,7 +75,7 @@ class ColumnChunkPageWriteStore implements PageWriteStore {
       this.compressor = compressor;
       this.allocator = allocator;
       this.buf = new ConcatenatingByteArrayCollector();
-      this.totalStatistics = getStatsBasedOnType(this.path.getType());
+      this.totalStatistics = getStatsBasedOnType(this.path.getType(), this.path.getEnableStats());
     }
 
     @Override
