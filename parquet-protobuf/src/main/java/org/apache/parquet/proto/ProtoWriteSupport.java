@@ -208,7 +208,7 @@ public class ProtoWriteSupport<T extends MessageOrBuilder> extends WriteSupport<
       }
       indexs = new HashMap<String, Integer>();
 
-      fieldWriters = (FieldWriter[]) Array.newInstance(FieldWriter.class, fields.size());
+      fieldWriters = (FieldWriter[]) Array.newInstance(FieldWriter.class, allFields.size());
       int i = 0;
       for (Descriptors.FieldDescriptor fieldDescriptor: allFields) {
         String name = fieldDescriptor.getName();
