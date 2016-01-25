@@ -123,7 +123,7 @@ public class ProtoSchemaConverter {
       }
       return group;
     }
-    case ENUM: return builder.primitive(BINARY, repetition).as(ENUM);
+    case ENUM: return builder.primitive(BINARY, repetition).as(UTF8);
     default:
       throw new UnsupportedOperationException("Cannot convert Protocol Buffer: unknown type " + javaType);
     }
