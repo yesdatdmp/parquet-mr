@@ -1,4 +1,4 @@
-/* 
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,6 +21,8 @@ package org.apache.parquet.proto;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
+import com.google.protobuf.DescriptorProtos.DescriptorProto;
+import com.google.protobuf.ExtensionRegistry;
 import com.twitter.elephantbird.util.Protobufs;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.io.InvalidRecordException;
@@ -31,6 +33,7 @@ import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.IncompatibleSchemaModificationException;
 import org.apache.parquet.schema.Type;
+import org.apache.parquet.Log;
 
 import java.util.HashMap;
 import java.util.List;
@@ -46,11 +49,18 @@ import static com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
  * @see {@link ProtoWriteSupport}
  * @author Lukas Nalezenec
  */
-class ProtoMessageConverter extends GroupConverter {
+public class ProtoMessageConverter extends GroupConverter {
+  private static final Log LOG = Log.getLog(ProtoMessageConverter.class);
 
   private final Converter[] converters;
   private final ParentValueContainer parent;
   private final Message.Builder myBuilder;
+
+  private static ExtensionRegistry registry;
+
+  public static void setExtensionRegistry(ExtensionRegistry extensionRegistry) {
+    registry = extensionRegistry;
+  }
 
   // used in record converter
   ProtoMessageConverter(ParentValueContainer pvc, Class<? extends Message> protoClass, GroupType parquetSchema) {
@@ -74,9 +84,29 @@ class ProtoMessageConverter extends GroupConverter {
     myBuilder = builder;
 
     Descriptors.Descriptor protoDescriptor = builder.getDescriptorForType();
+    ExtensionRegistry.ExtensionInfo extensionInfo = null;
 
     for (Type parquetField : parquetSchema.getFields()) {
       Descriptors.FieldDescriptor protoField = protoDescriptor.findFieldByName(parquetField.getName());
+
+      if (protoField == null && registry != null) {
+        for (int i = 0; i < protoDescriptor.toProto().getExtensionRangeCount(); ++i) {
+          DescriptorProto.ExtensionRange range =
+              protoDescriptor.toProto().getExtensionRange(i);
+          for (int j = range.getStart(); j < range.getEnd(); ++j) {
+            ExtensionRegistry.ExtensionInfo ei =
+                registry.findExtensionByNumber(protoDescriptor, j);
+            if (ei != null && ei.descriptor.getName().equals(parquetField.getName())) {
+              protoField = ei.descriptor;
+              extensionInfo = ei;
+              break;
+            }
+          }
+          if (protoField != null) {
+            break;
+          }
+        }
+      }
 
       if (protoField == null) {
         String description = "Scheme mismatch \n\"" + parquetField + "\"" +
@@ -84,7 +114,7 @@ class ProtoMessageConverter extends GroupConverter {
         throw new IncompatibleSchemaModificationException("Cant find \"" + parquetField.getName() + "\" " + description);
       }
 
-      converters[parquetFieldIndex - 1] = newMessageConverter(myBuilder, protoField, parquetField);
+      converters[parquetFieldIndex - 1] = newMessageConverter(myBuilder, protoField, parquetField, extensionInfo);
 
       parquetFieldIndex++;
     }
@@ -107,7 +137,7 @@ class ProtoMessageConverter extends GroupConverter {
     myBuilder.clear();
   }
 
-  private Converter newMessageConverter(final Message.Builder parentBuilder, final Descriptors.FieldDescriptor fieldDescriptor, Type parquetType) {
+  private Converter newMessageConverter(final Message.Builder parentBuilder, final Descriptors.FieldDescriptor fieldDescriptor, Type parquetType, ExtensionRegistry.ExtensionInfo ei) {
 
     boolean isRepeated = fieldDescriptor.isRepeated();
 
@@ -129,11 +159,11 @@ class ProtoMessageConverter extends GroupConverter {
       };
     }
 
-    return newScalarConverter(parent, parentBuilder, fieldDescriptor, parquetType);
+    return newScalarConverter(parent, parentBuilder, fieldDescriptor, parquetType, ei);
   }
 
 
-  private Converter newScalarConverter(ParentValueContainer pvc, Message.Builder parentBuilder, Descriptors.FieldDescriptor fieldDescriptor, Type parquetType) {
+  private Converter newScalarConverter(ParentValueContainer pvc, Message.Builder parentBuilder, Descriptors.FieldDescriptor fieldDescriptor, Type parquetType, ExtensionRegistry.ExtensionInfo ei) {
 
     JavaType javaType = fieldDescriptor.getJavaType();
 
@@ -147,7 +177,12 @@ class ProtoMessageConverter extends GroupConverter {
       case INT: return new ProtoIntConverter(pvc);
       case LONG: return new ProtoLongConverter(pvc);
       case MESSAGE: {
-        Message.Builder subBuilder = parentBuilder.newBuilderForField(fieldDescriptor);
+        Message.Builder subBuilder;
+        if (fieldDescriptor.isExtension()) {
+          subBuilder = ei.defaultInstance.newBuilderForType();
+        } else {
+          subBuilder = parentBuilder.newBuilderForField(fieldDescriptor);
+        }
         return new ProtoMessageConverter(pvc, subBuilder, parquetType.asGroupType());
       }
     }
